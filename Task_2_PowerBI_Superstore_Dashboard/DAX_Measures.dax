@@ -1,0 +1,67 @@
+// =====================================================================
+// Task 2: Superstore Executive Sales & Profit Dashboard - DAX measures
+// Tables: Fact_Orders, Dim_Customer, Dim_Product, Dim_Date
+// Create a separate table called "_Measures" (Enter Data, one blank column) and keep all measures there.
+// =====================================================================
+
+// ---- Core measures ----
+Total Sales = SUM ( Fact_Orders[Sales] )
+
+Total Profit = SUM ( Fact_Orders[Profit] )
+
+Profit Margin % = DIVIDE ( [Total Profit], [Total Sales], 0 )
+
+Total Orders = DISTINCTCOUNT ( Fact_Orders[Order ID] )
+
+Total Quantity = SUM ( Fact_Orders[Quantity] )
+
+Total Customers = DISTINCTCOUNT ( Fact_Orders[Customer ID] )
+
+Avg Order Value = DIVIDE ( [Total Sales], [Total Orders], 0 )
+
+Avg Discount % = AVERAGE ( Fact_Orders[Discount] )
+
+// ---- Year over year ----
+Sales PY = CALCULATE ( [Total Sales], SAMEPERIODLASTYEAR ( Dim_Date[Date] ) )
+
+Profit PY = CALCULATE ( [Total Profit], SAMEPERIODLASTYEAR ( Dim_Date[Date] ) )
+
+YoY Sales Growth % =
+VAR PY = [Sales PY]
+RETURN IF ( ISBLANK ( PY ), BLANK (), DIVIDE ( [Total Sales] - PY, PY, 0 ) )
+
+YoY Profit Growth % =
+VAR PY = [Profit PY]
+RETURN IF ( ISBLANK ( PY ), BLANK (), DIVIDE ( [Total Profit] - PY, PY, 0 ) )
+
+Sales YTD = TOTALYTD ( [Total Sales], Dim_Date[Date] )
+
+// ---- Discount and loss analysis ----
+Loss Making Lines = CALCULATE ( COUNTROWS ( Fact_Orders ), Fact_Orders[Profit] < 0 )
+
+Loss Making Lines % = DIVIDE ( [Loss Making Lines], COUNTROWS ( Fact_Orders ), 0 )
+
+High Discount Profit =
+CALCULATE ( [Total Profit], Fact_Orders[Discount] > 0.2 )
+
+// ---- Share measures for treemap and matrix tooltips ----
+Sales % of Total = DIVIDE ( [Total Sales], CALCULATE ( [Total Sales], ALLSELECTED () ), 0 )
+
+Profit % of Total = DIVIDE ( [Total Profit], CALCULATE ( [Total Profit], ALLSELECTED () ), 0 )
+
+// ---- Colour helpers for conditional formatting (use "Field value" formatting) ----
+Profit Colour = IF ( [Total Profit] < 0, "#C0392B", "#2E86AB" )
+
+Margin Colour =
+SWITCH (
+    TRUE (),
+    [Profit Margin %] < 0, "#C0392B",
+    [Profit Margin %] < 0.10, "#F2A65A",
+    "#2E8B57"
+)
+
+// ---- Dynamic title (optional) ----
+Page Title =
+"Sales " & FORMAT ( [Total Sales], "$#,##0" )
+    & " | Profit " & FORMAT ( [Total Profit], "$#,##0" )
+    & " | Margin " & FORMAT ( [Profit Margin %], "0.0%" )

@@ -1,0 +1,106 @@
+// =====================================================================
+// Task 4: Corporate Financial & Margin Performance Dashboard - DAX
+// Tables: Financial_Clean (fact), Dim_Date
+// Keep all measures in a table called "_Measures".
+// Column names in Financial_Clean: Gross Sales, Discounts, Net Sales, COGS, Profit
+// (the original column " Sales" was renamed "Net Sales" because Gross Sales - Discounts = Sales in the source)
+// =====================================================================
+
+// ---- Income statement: Gross Sales -> Discounts -> Net Sales -> COGS -> Profit ----
+Total Gross Sales = SUM ( Financial_Clean[Gross Sales] )
+
+Total Discounts = SUM ( Financial_Clean[Discounts] )
+
+Total Net Sales = SUM ( Financial_Clean[Net Sales] )
+
+Total COGS = SUM ( Financial_Clean[COGS] )
+
+Total Profit = [Total Net Sales] - [Total COGS]
+
+Units Sold = SUM ( Financial_Clean[Units Sold] )
+
+// ---- Ratios asked for in the task ----
+Gross Profit % = DIVIDE ( [Total Profit], [Total Net Sales], 0 )
+
+COGS Ratio = DIVIDE ( [Total COGS], [Total Net Sales], 0 )
+
+Segment Margin = DIVIDE ( [Total Profit], [Total Net Sales], 0 )   // use with Segment on rows or axis
+
+Discount % = DIVIDE ( [Total Discounts], [Total Gross Sales], 0 )
+
+Segment Profit Share % =
+DIVIDE ( [Total Profit], CALCULATE ( [Total Profit], ALL ( Financial_Clean[Segment] ) ), 0 )
+
+// ---- Waterfall helper (stacked column with an invisible base) ----
+// Calculated table:
+Waterfall Steps =
+DATATABLE (
+    "Step", STRING,
+    "Order", INTEGER,
+    { { "Gross Sales", 1 }, { "Discounts", 2 }, { "Net Sales", 3 }, { "COGS", 4 }, { "Profit", 5 } }
+)
+// Sort Waterfall Steps[Step] by Waterfall Steps[Order].
+
+WF Base =
+SWITCH (
+    SELECTEDVALUE ( 'Waterfall Steps'[Step] ),
+    "Discounts", [Total Net Sales],
+    "COGS", [Total Profit],
+    0
+)
+
+WF Bar =
+SWITCH (
+    SELECTEDVALUE ( 'Waterfall Steps'[Step] ),
+    "Gross Sales", [Total Gross Sales],
+    "Discounts", [Total Discounts],
+    "Net Sales", [Total Net Sales],
+    "COGS", [Total COGS],
+    "Profit", [Total Profit]
+)
+
+// ---- Budget (assumption-driven: the dataset has no budget column) ----
+// Create two parameter tables (Modeling > New parameter, or use the DAX below):
+Budget Discount Rate = GENERATESERIES ( 0, 0.15, 0.005 )
+Budget Discount Rate Value = SELECTEDVALUE ( 'Budget Discount Rate'[Budget Discount Rate], 0.05 )
+
+Budget COGS Ratio = GENERATESERIES ( 0.75, 0.95, 0.005 )
+Budget COGS Ratio Value = SELECTEDVALUE ( 'Budget COGS Ratio'[Budget COGS Ratio], 0.85 )
+
+Budget Net Sales = [Total Gross Sales] * ( 1 - [Budget Discount Rate Value] )
+
+Budget COGS = [Budget Net Sales] * [Budget COGS Ratio Value]
+
+Budget Profit = [Budget Net Sales] - [Budget COGS]
+
+Net Sales Variance = [Total Net Sales] - [Budget Net Sales]
+
+Net Sales Variance % = DIVIDE ( [Net Sales Variance], [Budget Net Sales], 0 )
+
+Profit Variance = [Total Profit] - [Budget Profit]
+
+Variance Colour = IF ( [Net Sales Variance] < 0, "#C0392B", "#2E8B57" )
+
+// ---- Scenario forecasting sliders (What-if parameters) ----
+Volume Change = GENERATESERIES ( -0.2, 0.2, 0.01 )
+Volume Change Value = SELECTEDVALUE ( 'Volume Change'[Volume Change], 0 )
+
+Discount Rate Change = GENERATESERIES ( -0.05, 0.05, 0.005 )          // change in percentage points
+Discount Rate Change Value = SELECTEDVALUE ( 'Discount Rate Change'[Discount Rate Change], 0 )
+
+COGS Change = GENERATESERIES ( -0.1, 0.1, 0.01 )
+COGS Change Value = SELECTEDVALUE ( 'COGS Change'[COGS Change], 0 )
+
+Scenario Gross Sales = [Total Gross Sales] * ( 1 + [Volume Change Value] )
+
+Scenario Discounts = [Scenario Gross Sales] * ( [Discount %] + [Discount Rate Change Value] )
+
+Scenario Net Sales = [Scenario Gross Sales] - [Scenario Discounts]
+
+Scenario COGS = [Total COGS] * ( 1 + [Volume Change Value] ) * ( 1 + [COGS Change Value] )
+
+Scenario Profit = [Scenario Net Sales] - [Scenario COGS]
+
+Scenario Margin % = DIVIDE ( [Scenario Profit], [Scenario Net Sales], 0 )
+
+Scenario Profit Impact = [Scenario Profit] - [Total Profit]
